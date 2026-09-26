@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b1436">
+<title>Story Twirl — a story a night</title>
+<!--
+  Story Twirl — prototype v1 (single file, offline by design)
+
+  Product shape (per Gary):
+    · one story per day, free
+    · want more than one a night  ->  membership
+    · narration is OFFLINE voice (no network, no API key)
+
+  Narration path:
+    · in a browser  -> speechSynthesis (device voices; offline once voice pack is installed)
+    · inside the Android APK -> AndroidBridge.speak(text, lang) hits the native offline
+      TextToSpeech engine. The bridge stub below is the ONLY change the APK needs;
+      this same file is dropped into app/src/main/assets/ unchanged.
+
+  Membership is enforced locally (localStorage). Honest ceiling: a local gate is
+  bypassable by anyone who clears site data. It exists to be fair, not to be DRM.
+  A real gate needs the unlock code checked server-side at purchase time.
+-->
+<style>
+  :root{
+    --bg:#1b1436; --bg2:#241a4a; --card:#2c2158; --ink:#f4f1ff; --dim:#b9aee6;
+    --accent:#ffd166; --accent2:#7ee0c1; --line:#3d2f70; --radius:18px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:linear-gradient(170deg,var(--bg),var(--bg2) 60%,#150f2c);color:var(--ink);
+    font:17px/1.65 ui-rounded,"Segoe UI",system-ui,-apple-system,sans-serif;min-height:100%}
+  .wrap{max-width:640px;margin:0 auto;padding:18px 18px 120px}
+  header{display:flex;align-items:center;gap:10px;margin:6px 0 18px}
+  header h1{font-size:19px;margin:0;letter-spacing:.3px}
+  header .dot{width:10px;height:10px;border-radius:50%;background:var(--accent2);box-shadow:0 0 12px var(--accent2)}
+  .muted{color:var(--dim)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin:14px 0}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  button{font:inherit;border:0;border-radius:999px;padding:12px 18px;background:var(--accent);color:#2a1c00;
+    font-weight:650;cursor:pointer;transition:transform .06s ease}
+  button:active{transform:scale(.97)}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input{font:inherit;background:#1a1236;border:1px solid var(--line);border-radius:12px;padding:11px 13px;color:var(--ink);width:100%}
+  h2{font-size:22px;margin:2px 0 10px;line-height:1.25}
+  .story p{margin:0 0 14px}
+  .story{font-size:19px;line-height:1.85}
+  .badge{display:inline-block;background:#1a1236;border:1px solid var(--line);color:var(--dim);
+    border-radius:999px;padding:4px 11px;font-size:13px;margin-right:6px}
+  .player{position:fixed;left:0;right:0;bottom:0;background:#170f33ee;backdrop-filter:blur(9px);
+    border-top:1px solid var(--line);padding:12px 18px calc(12px + env(safe-area-inset-bottom))}
+  .player .inner{max-width:640px;margin:0 auto;display:flex;gap:10px;align-items:center}
+  .player .now{flex:1;min-width:0}
+  .player .now b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .player .now span{font-size:13px;color:var(--dim)}
+  .lesson{background:#1a1236;border-left:3px solid var(--accent2);border-radius:10px;padding:12px 14px;margin:18px 0}
+  .lesson b{color:var(--accent2)}
+  .gate{text-align:center}
+  .gate .big{font-size:15px;color:var(--dim)}
+  .list button{width:100%;text-align:left;justify-content:flex-start;margin:8px 0;background:#1a1236;color:var(--ink);border:1px solid var(--line)}
+  .list button b{display:block;font-size:16px}
+  .list button span{font-size:13px;color:var(--dim);font-weight:400}
+  .hidden{display:none!important}
+  footer{margin-top:26px;font-size:13px;color:var(--dim);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="dot"></span>
+    <h1>Story Twirl</h1>
+    <span class="muted" style="margin-left:auto;font-size:13px" id="status">offline · narrates with your device voice</span>
+  </header>
+
+  <!-- ============ library ============ -->
+  <section id="library">
+    <div class="card">
+      <h2>Who is listening tonight?</h2>
+      <div class="row">
+        <input id="kidName" placeholder="your child's name (optional)" autocomplete="off" maxlength="18">
+      </div>
+      <p class="muted" style="font-size:13px;margin:10px 0 0">The name is used inside some stories. It never leaves this device — there is no server in this app.</p>
+    </div>
+
+    <div class="row" style="justify-content:space-between;margin:18px 2px 6px">
+      <b>Tonight's shelf</b>
+      <span class="muted" style="font-size:13px" id="quota"></span>
+    </div>
+    <div class="list" id="shelf"></div>
+
+    <div class="card gate" id="gateCard">
+      <div style="font-size:34px">🌙</div>
+      <h2 id="gateTitle" style="margin-top:6px">One story a night, free</h2>
+      <p class="big" id="gateBody">You have read tonight's free story. The shelf unlocks again after midnight — or unlock everything now with a membership.</p>
+      <div class="row" style="justify-content:center;margin-top:14px">
+        <button id="openMember">I have a membership code</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ reader ============ -->
+  <section id="reader" class="hidden">
+    <div class="row" style="margin-bottom:8px">
+      <button class="ghost" id="back">← shelf</button>
+      <span class="badge" id="readTime"></span>
+      <span class="badge" id="ageBand">ages 3–6</span>
+    </div>
+    <article class="card story" id="storyBody"></article>
+    <div class="lesson hidden" id="lessonBox"></div>
+    <footer>Read it again, or tap play and let the machine read tonight.</footer>
+  </section>
+
+  <!-- ============ membership ============ -->
+  <section id="member" class="hidden">
+    <div class="card">
+      <h2>Membership</h2>
+      <p class="muted">Unlimited stories, every night, on this device. One code, no account, no ads, works offline.</p>
+      <div class="row" style="margin:12px 0">
+        <input id="code" placeholder="paste your membership code" autocomplete="off">
+      </div>
+      <div class="row">
+        <button id="activate">Unlock</button>
+        <button class="ghost" id="cancelMember">Cancel</button>
+      </div>
+      <p class="muted" style="font-size:13px;margin:14px 0 0" id="memberMsg">Codes are issued after purchase. Until then, the free story a night keeps working.</p>
+      <p class="muted" style="font-size:12px;margin:10px 0 0">Prototype note: this build checks the code on the device. Production checks it once at purchase and stores a signed licence.</p>
+    </div>
+  </section>
+</div>
+
+<!-- ============ player ============ -->
+<div class="player hidden" id="player">
+  <div class="inner">
+    <button id="playBtn">▶︎ read to me</button>
+    <button class="ghost" id="stopBtn">■</button>
+    <div class="now">
+      <b id="nowTitle">—</b>
+      <span id="nowState">ready</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ *  narration: one entry point, two backends.
+ *  Browser -> speechSynthesis.  Android APK -> AndroidBridge (native
+ *  offline TextToSpeech).  Nothing else in this file needs to change.
+ * ------------------------------------------------------------------ */
+const Bridge = (typeof AndroidBridge !== 'undefined' && AndroidBridge && AndroidBridge.isNative) ? AndroidBridge : null;
+const LANG = 'en-US';
+let speaking = false;
+
+function say(text){
+  stopSpeaking();
+  if (Bridge) { Bridge.speak(text, LANG); speaking = true; paint('speaking (device voice)'); return; }
+  if (!('speechSynthesis' in window)) { paint('this browser has no speech engine'); return; }
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = LANG; u.rate = 0.92; u.pitch = 1.06;
+  u.onend = () => { speaking = false; paint('finished'); };
+  u.onerror = () => { speaking = false; paint('voice error — try again'); };
+  speechSynthesis.speak(u);
+  speaking = true; paint('speaking');
+}
+function stopSpeaking(){
+  if (Bridge) { if (Bridge.stop) Bridge.stop(); }
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  speaking = false; paint('stopped');
+}
+function paint(s){ document.getElementById('nowState').textContent = s; }
+
+/* ------------------------------------------------------------------ *
+ *  stories
+ * ------------------------------------------------------------------ */
+const STORIES = [
+{
+  id:'sheep', title:'The Sheep Who Counted Children',
+  blurb:'A sheep gets the job backwards — and it works.',
+  minutes:4,
+  body:[
+   ["It was nearly bedtime in the green field at the top of the hill. The sun had gone soft and orange. The birds had stopped shouting and started whispering.",
+    "In the middle of that field stood one small sheep. Her name was Tilly. Tilly had one job, and everyone knew what it was.",
+    "\"Count the children,\" said the old sheep. \"That is what we do. A child lies in bed. You count. One child. Two children. Three children. And by the time you reach the sleepy ones, the child in the bed is fast asleep.\"",
+    "Tilly nodded. \"Count the children. I can do that.\"",
+    "That night, Tilly stood by the fence and got ready. She took a deep breath. She looked at the sleeping houses. And then she counted.",
+    "\"One CHILD,\" said Tilly, very loudly.",
+    "Nothing happened.",
+    "\"Two CHILDREN,\" said Tilly, even more loudly.",
+    "Nothing happened. In a house at the bottom of the hill, a little girl sat up in bed and said, \"Mum? I think there is a sheep shouting.\"",
+    "Tilly tried again. \"THREE CHILDREN! FOUR CHILDREN! FIVE CHILDREN!\"",
+    "Windows went on. Doors opened. A man in his pyjamas came outside and said, \"Is everybody all right? Who is shouting numbers?\"",
+    "\"Me,\" said Tilly. \"I am counting the children. It is my job. It is meant to make them sleepy.\"",
+    "The man in pyjamas looked at Tilly for a long moment. Then he said, \"Have you tried counting something quieter?\"",
+    "Tilly thought about this. She looked at the field. She looked at the sky. And then she saw them — small, soft, and moving very slowly across the dark: clouds.",
+    "\"One cloud,\" said Tilly, quietly. \"Two clouds. Three clouds.\"",
+    "In the house at the bottom of the hill, the little girl lay back down. The shouting had stopped. There was just a soft voice outside, going slowly past three, past four, past five.",
+    "\"Six clouds,\" said Tilly. \"Seven. Eight.\"",
+    "The little girl's eyes got heavy. \"Nine clouds,\" said Tilly, and yawned. \"Ten.\"",
+    "By eleven she had forgotten what she was counting. By twelve she was asleep with her chin on the fence, and the whole hill was quiet.",
+    "The old sheep found her there in the morning. \"Did you count the children?\" she asked.",
+    "\"No,\" said Tilly. \"I counted clouds. But everyone went to sleep anyway.\"",
+    "The old sheep thought about it for a while. Then she nodded. \"Well,\" she said. \"That is the same thing, only nicer.\"",
+    "And after that, every night, in that field, you could hear a small sheep going quietly through the sky: one cloud, two clouds, three — until the whole hill, sheep and children both, fell asleep together.",
+    "THE END."]
+  ],
+  lesson:{ask:'Tilly tried one way, then another way. What is something you tried twice today?',
+          fact:'Real sheep really do sleep about four hours a night — but they nap a lot, all day long.'}
+},
+{
+  id:'puddle', title:'Marvin and the Very Serious Puddle',
+  blurb:'A puddle has a very important job. Marvin has boots.',
+  minutes:4,
+  body:[
+   ["After the rain, the whole pavement was covered in puddles. Small ones. Medium ones. And one enormous one, right outside Marvin's gate, shaped like Australia.",
+    "Marvin put on his boots. Marvin's boots were yellow, and they made a sound that Marvin liked very much: squelch.",
+    "\"Marvin,\" said his mother. \"If you jump in that puddle, you will be wet from your hat to your socks.\"",
+    "Marvin looked at the puddle. The puddle looked back, very calmly, the way a puddle does.",
+    "\"I understand,\" said Marvin.",
+    "He was not lying. He understood completely. He understood that the puddle was enormous, that his boots were yellow, and that some things in life are simply meant to be jumped in.",
+    "So he jumped.",
+    "SPLASH.",
+    "It was a magnificent splash. It went up. It went sideways. It went into the hedge, where a blackbird was sitting, minding its own business. The blackbird made a noise like a rusty door and flew away.",
+    "Marvin stood in the middle of the puddle, wet from his hat to his socks, feeling extremely good.",
+    "And then the puddle spoke.",
+    "\"Excuse me,\" said the puddle.",
+    "Marvin froze.",
+    "\"I said excuse me,\" said the puddle. \"I am working.\"",
+    "\"Working?\" said Marvin.",
+    "\"Working,\" said the puddle. \"I am an enormous puddle. Do you know how much sky I have to hold? I am holding the entire sky, upside down, all day. Clouds. Birds. One aeroplane, twice. It is a very big job and I am doing it very well, and then somebody in yellow boots comes along and jumps straight through the middle of my sky.\"",
+    "Marvin looked down. He could see the sky in the puddle, in pieces now, wobbling.",
+    "\"I'm sorry,\" he said. \"I didn't know you were busy.\"",
+    "\"Nobody ever does,\" said the puddle, rather sadly. \"Puddles look like nothing. That is exactly why we get jumped on.\"",
+    "Marvin stood still in the water and thought about being looked at and thought to be nothing. He did not like the way it felt.",
+    "\"Can I help?\" he said.",
+    "The puddle went quiet for a moment. \"Well,\" it said. \"You could stop standing in the middle of me.\"",
+    "Marvin stepped out, carefully, and stood on the dry bit by the gate.",
+    "Slowly, very slowly, the puddle got its sky back. A cloud came in. Then a whole tree, upside down. Then the sun, which was pleased to be included.",
+    "\"Better,\" said the puddle. \"Much better. Thank you.\"",
+    "And Marvin found that he was wet, and cold, and had a hole in one sock, and he did not mind one bit. He had made friends with a puddle, which is not a thing most people manage before breakfast.",
+    "The next morning, the puddle had gone somewhere to do its next job. But it had left something behind: a perfectly round, flat, dry circle of pavement, exactly the size of a puddle, and right in the middle of it, one small feather — the blackbird's, from the day before.",
+    "Marvin kept it in a tin.",
+    "And he never jumped in an enormous puddle again, unless he had first asked politely.",
+    "THE END."]
+  ],
+  lesson:{ask:'The puddle was holding the sky. What is something that looks small but is actually doing a big job?',
+          fact:'A puddle holds the whole sky, upside down — every puddle is a mirror lying flat on the ground.'}
+},
+{
+  id:'sock', title:'The Loudest Sock in the World',
+  blurb:'{{name}} has a new sock. The sock has opinions.',
+  minutes:5,
+  body:[
+   ["On Monday, {{namePos}} opened the drawer and found a new sock. It was red, with one green stripe, and the moment the drawer opened, the sock said:",
+    "\"HELLO!\"",
+    "{{name}} jumped.",
+    "\"I AM THE LOUDEST SOCK IN THE WORLD,\" said the sock, happily. \"AND I HAVE BEEN IN THIS DRAWER FOR SIX DAYS.\"",
+    "\"Socks can't talk,\" said {{name}}.",
+    "\"WRONG,\" said the sock. \"Socks can't talk QUIETLY. That is different, and it is my whole problem.\"",
+    "So {{name}} put the sock on. It was warm. It was comfortable. It also shouted comments about everything it saw.",
+    "\"WHAT A BIG KITCHEN,\" said the sock. \"IS THAT THE KETTLE? I LIKE IT. I LIKE EVERYTHING HERE.\"",
+    "At breakfast, {{name}} put the sock's foot under the table. \"Please,\" whispered {{name}}. \"Please be quieter. People are looking.\"",
+    "\"OKAY,\" said the sock. Then, a second later: \"THE TOAST IS VERY GOOD.\"",
+    "At school, things got worse. During quiet reading, the sock said, \"I CANNOT SEE THE PICTURES FROM DOWN HERE.\" During maths, the sock said, \"NINE LOOKS LIKE A BALLOON.\" During the bit where everyone had to be completely silent, the sock said, in its biggest voice: \"THIS IS MY FAVOURITE PART!\"",
+    "Twenty-three children turned to look at {{name}}'s foot.",
+    "After school, {{name}} sat on the front step and had a serious talk with the sock.",
+    "\"You are getting me in trouble,\" said {{name}}. \"You have to learn to be quiet, or you have to live in the drawer.\"",
+    "The sock was quiet for a long time. So long that {{name}} thought it had gone. Then it said, in a small voice:",
+    "\"I don't know how.\"",
+    "{{name}} thought about this. It is hard to know how to do something nobody has shown you.",
+    "\"Right,\" said {{name}}. \"We'll practise. When I press your toe, that means quiet. When I squeeze your heel, that means you can talk.\"",
+    "\"And nothing else?\" said the sock.",
+    "\"Nothing else,\" said {{name}}.",
+    "They practised all evening. Press the toe — quiet. Squeeze the heel — \"HELLO.\" Press the toe — quiet.",
+    "By bedtime, the sock could do it.",
+    "That night {{name}} wore the sock to bed, which was unusual, but the sock was warm and had had a hard week.",
+    "\"Squeeze or press?\" whispered the sock.",
+    "\"Squeeze,\" said {{name}}.",
+    "The sock thought for a moment. Then it said, as quietly as it could — which for the loudest sock in the world was still not very quiet, but it was trying:",
+    "\"Goodnight. I like you. I like everything here.\"",
+    "And {{name}} fell asleep, warm, with one green stripe showing above the covers.",
+    "THE END."]
+  ],
+  lesson:{ask:'The sock could not be quiet. How did {{name}} help it?',
+          fact:'Your feet have about a quarter of all the bones in your body — 52 of them, and your toes do half the work of balancing.'}
+}
+];
+
+/* ------------------------------------------------------------------ *
+ *  daily gate: one free story per calendar day, local, honest, simple
+ * ------------------------------------------------------------------ */
+const KEY = 'storytwirl.v1';
+const state = load();
+
+function today(){ const d = new Date(); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+function load(){
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e){}
+  return { member: !!s.member, code: s.code || '', day: s.day || '', used: s.used || 0, name: s.name || '', read: s.read || [] };
+}
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+function rollover(){ if (state.day !== today()) { state.day = today(); state.used = 0; save(); } }
+
+const MEMBER_CODES = ['TWIRL-DEMO-2026'];   // prototype: replace with server-checked licence
+function isMember(){ return state.member; }
+function freeUsed(){ rollover(); return state.used >= 1; }
+function nameNow(){ return (state.name || '').trim(); }
+function fill(s){
+  const n = nameNow();
+  return s.replace(/\{\{name\}\}/g, n || 'the child')
+          .replace(/\{\{namePos\}\}/g, n ? n + "'s" : "the child's");
+}
+
+/* ------------------------------------------------------------------ *
+ *  ui
+ * ------------------------------------------------------------------ */
+const $ = id => document.getElementById(id);
+
+function renderShelf(){
+  const name = nameNow();
+  $('kidName').value = state.name;
+  const shelf = $('shelf'); shelf.innerHTML = '';
+  const locked = freeUsed() && !isMember();
+
+  STORIES.forEach((s, i) => {
+    const b = document.createElement('button');
+    const isLocked = locked;
+    b.innerHTML = '<b>' + fill(s.title) + (isLocked ? ' 🔒' : '') + '</b><span>' + fill(s.blurb) + ' · ' + s.minutes + ' min</span>';
+    b.disabled = isLocked;
+    b.onclick = () => openStory(i);
+    shelf.appendChild(b);
+  });
+
+  $('quota').textContent = isMember() ? 'membership · unlimited'
+                        : (freeUsed() ? 'free story used tonight' : 'tonight’s free story is ready');
+  $('gateCard').classList.toggle('hidden', isMember());
+  $('gateBody').textContent = freeUsed()
+    ? 'You have read tonight’s free story. The shelf opens again after midnight — or unlock everything now.'
+    : 'One story every night, free, forever. Want more in one night? That is what membership is for.';
+  $('status').textContent = name ? ('offline · ' + name + '’s library') : 'offline · narrates with your device voice';
+}
+
+function openStory(i){
+  const s = STORIES[i];
+  if (!isMember()) { rollover(); state.used += 1; if (!state.read.includes(s.id)) state.read.push(s.id); save(); }
+  $('library').classList.add('hidden'); $('member').classList.add('hidden');
+  $('reader').classList.remove('hidden');
+  $('storyBody').innerHTML = fill(s.title) === s.title ? '' : '';
+  $('storyBody').innerHTML = '<h2>' + fill(s.title) + '</h2>' + s.body[0].map(p => '<p>' + fill(p) + '</p>').join('');
+  $('readTime').textContent = s.minutes + ' min read';
+  $('lessonBox').classList.remove('hidden');
+  $('lessonBox').innerHTML = '<b>One question for afterwards:</b> ' + fill(s.lesson.ask) +
+                             '<br><br><b>Did you know?</b> ' + fill(s.lesson.fact);
+  $('player').classList.remove('hidden');
+  $('nowTitle').textContent = fill(s.title);
+  paint('ready');
+  window.scrollTo({top:0});
+  current = fill(s.body[0].join(' '));
+}
+
+let current = '';
+$('back').onclick = () => { stopSpeaking(); $('reader').classList.add('hidden'); $('player').classList.add('hidden'); $('library').classList.remove('hidden'); renderShelf(); };
+$('playBtn').onclick = () => { if (speaking) { stopSpeaking(); $('playBtn').textContent = '▶︎ read to me'; } else { say(current); $('playBtn').textContent = '❚❚ pause'; } };
+$('stopBtn').onclick = () => { stopSpeaking(); $('playBtn').textContent = '▶︎ read to me'; };
+$('kidName').oninput = e => { state.name = e.target.value; save(); renderShelf(); };
+$('openMember').onclick = () => { $('library').classList.add('hidden'); $('member').classList.remove('hidden'); };
+$('cancelMember').onclick = () => { $('member').classList.add('hidden'); $('library').classList.remove('hidden'); };
+$('activate').onclick = () => {
+  const v = $('code').value.trim().toUpperCase();
+  if (MEMBER_CODES.includes(v)) {
+    state.member = true; state.code = v; save();
+    $('memberMsg').textContent = 'Unlocked. Every story, every night.';
+    setTimeout(() => { $('member').classList.add('hidden'); $('library').classList.remove('hidden'); renderShelf(); }, 700);
+  } else {
+    $('memberMsg').textContent = 'That code is not recognised. Check for a missing dash — or buy one first.';
+  }
+};
+
+renderShelf();
+</script>
+</body>
+</html>
