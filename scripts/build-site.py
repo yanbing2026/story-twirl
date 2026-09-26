@@ -76,6 +76,11 @@ def load():
         for k in ("id", "slug", "title", "blurb", "minutes", "cover", "lesson", "body"):
             if k not in s:
                 raise SystemExit(f"{s.get('slug')}: missing field {k}")
+        # Contract: body is a FLAT list of paragraph strings, and the app renders s.body.
+        # (It used to be [[...]] and a regenerated block silently broke openStory.)
+        if not (isinstance(s["body"], list) and s["body"]
+                and all(isinstance(p, str) for p in s["body"])):
+            raise SystemExit(f"{s['slug']}: body must be a non-empty list of paragraph strings")
     return stories
 
 
