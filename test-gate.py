@@ -16,6 +16,7 @@ Exit code 0 = all assertions passed.
 import asyncio
 import itertools
 import json
+import pathlib
 import sys
 import time
 import urllib.parse
@@ -37,6 +38,13 @@ DRIVE = r"""
   const quota = () => $('#quota').textContent.trim();
 
   await sleep(400);
+  const h1 = document.querySelector('header h1'), dot = document.querySelector('header .dot');
+  const lh = parseFloat(getComputedStyle(h1).lineHeight) || 24;
+  const hb = h1.getBoundingClientRect(), db = dot.getBoundingClientRect();
+  check('header title stays on one line', hb.height <= lh + 3, 'h=' + Math.round(hb.height) + ' lh=' + lh);
+  check('header dot is centred on the title',
+        Math.abs((db.y + db.height / 2) - (hb.y + hb.height / 2)) <= 4,
+        'dy=' + Math.round((db.y + db.height / 2) - (hb.y + hb.height / 2)));
   check('shelf shows three stories', shelfBtns().length === 3, 'n=' + shelfBtns().length);
   check('shelf cards carry cover art', document.querySelectorAll('#shelf button img.cv').length === 3,
         'covers=' + document.querySelectorAll('#shelf button img.cv').length);
@@ -104,6 +112,34 @@ async def page_target():
     return pages[0]["webSocketDebuggerUrl"]
 
 
+def ensure_browser(timeout=25):
+    """Headless Chromium dies on its own often enough (OOM on a 6GB box) that a test
+    which only works while someone else's browser is alive is not a test."""
+    import subprocess
+    import urllib.request
+
+    def alive():
+        try:
+            with urllib.request.urlopen(f"{CDP}/json/version", timeout=2):
+                return True
+        except Exception:
+            return False
+
+    if alive():
+        return False
+    profile = pathlib.Path.home() / ".hermes/cache/scratch/cdp-profile"
+    subprocess.Popen(
+        ["/usr/bin/chromium", "--headless=new", "--no-sandbox", "--disable-gpu",
+         "--remote-debugging-port=9222", f"--user-data-dir={profile}", "about:blank"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if alive():
+            return True
+        time.sleep(0.5)
+    raise SystemExit("could not start Chromium on :9222")
+
+
 async def run(url):
     ws_url = await page_target()
     origin = "{0.scheme}://{0.netloc}".format(urllib.parse.urlsplit(url))
@@ -143,6 +179,8 @@ def main():
         self_check()
         return 0
     url = next((a for a in sys.argv[1:] if not a.startswith("--")), DEFAULT_URL)
+    if ensure_browser():
+        print("started a headless Chromium for this run")
     print(f"testing {url}\n")
     results = asyncio.run(run(url))
     failed = 0
