@@ -37,6 +37,10 @@ DRIVE = r"""
 
   await sleep(400);
   check('shelf shows three stories', shelfBtns().length === 3, 'n=' + shelfBtns().length);
+  check('shelf cards carry cover art', document.querySelectorAll('#shelf button img.cv').length === 3,
+        'covers=' + document.querySelectorAll('#shelf button img.cv').length);
+  check('cover art is inlined, not fetched', [...document.querySelectorAll('#shelf button img.cv')]
+        .every(i => i.getAttribute('src').startsWith('data:image/')));
   check('free story is available tonight', /free story is ready/.test(quota()), quota());
   check('shelf unlocked before reading', shelfBtns().every(b => !b.disabled));
 
@@ -46,6 +50,8 @@ DRIVE = r"""
   check('reader shows the story', ($('#storyBody h2') || {}).textContent === 'The Sheep Who Counted Children',
         ($('#storyBody h2') || {}).textContent);
   check('narration player appears', !$('#player').classList.contains('hidden'));
+  check('reader shows cover art', !!document.querySelector('#storyBody img.hero'));
+  check('story text is below the art', ($('#storyBody').firstElementChild || {}).tagName === 'IMG');
 
   $('#back').click();
   await sleep(200);
