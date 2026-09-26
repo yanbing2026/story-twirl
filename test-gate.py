@@ -18,6 +18,7 @@ import itertools
 import json
 import sys
 import time
+import urllib.parse
 
 import aiohttp
 import websockets
@@ -105,10 +106,18 @@ async def page_target():
 
 async def run(url):
     ws_url = await page_target()
+    origin = "{0.scheme}://{0.netloc}".format(urllib.parse.urlsplit(url))
     async with websockets.connect(ws_url, max_size=16 * 1024 * 1024) as ws:
         c = itertools.count(1)
         await cmd(ws, c, "Page.enable")
-        await cmd(ws, c, "Runtime.evaluate", {"expression": "localStorage.clear()"})
+        # Clear the SITE ORIGIN's storage, not whatever page happens to be loaded:
+        # localStorage.clear() via Runtime.evaluate runs in the current page's origin
+        # (often about:blank), so a previous run's "already a member" state survives and
+        # the free-tier assertions fail while the product is fine.
+        await cmd(ws, c, "Page.navigate", {"url": url})
+        await asyncio.sleep(1.5)
+        await cmd(ws, c, "Storage.clearDataForOrigin",
+                  {"origin": origin, "storageTypes": "local_storage"})
         await cmd(ws, c, "Page.navigate", {"url": url + ("?t=%d" % time.time())})
         await asyncio.sleep(3.0)
         r = await cmd(ws, c, "Runtime.evaluate",
