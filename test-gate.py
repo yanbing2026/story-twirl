@@ -45,6 +45,7 @@ DRIVE = r"""
   check('header dot is centred on the title',
         Math.abs((db.y + db.height / 2) - (hb.y + hb.height / 2)) <= 4,
         'dy=' + Math.round((db.y + db.height / 2) - (hb.y + hb.height / 2)));
+  check('build stamp is visible', /build \d\d-\d\d \d\d:\d\d/.test($('#status').textContent), $('#status').textContent);
   check('shelf shows three stories', shelfBtns().length === 3, 'n=' + shelfBtns().length);
   check('shelf cards carry cover art', document.querySelectorAll('#shelf button img.cv').length === 3,
         'covers=' + document.querySelectorAll('#shelf button img.cv').length);
