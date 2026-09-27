@@ -133,7 +133,9 @@ def app_block(stories):
 
 def build_app(stories):
     html_src = (ROOT / "index.html").read_text()
-    pat = re.compile(r"const STORIES = \[.*?" + re.escape(END), re.S)
+    # Match from the BEGIN marker, not from `const STORIES = [`, or anything the
+    # generator writes above that line (the BUILD stamp) accumulates on every run.
+    pat = re.compile(re.escape(BEGIN) + r".*?" + re.escape(END), re.S)
     if not pat.search(html_src):
         raise SystemExit("index.html: could not find the generated STORIES/COVERS region")
     new = pat.sub(lambda _: app_block(stories), html_src, count=1)

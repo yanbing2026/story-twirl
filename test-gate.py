@@ -160,8 +160,12 @@ async def run(url):
         r = await cmd(ws, c, "Runtime.evaluate",
                       {"expression": DRIVE, "awaitPromise": True, "returnByValue": True})
     res = r.get("result", {}).get("result", {})
-    if "value" not in res:
-        raise SystemExit(f"driver failed: {json.dumps(r)[:600]}")
+    exc = r.get("result", {}).get("exceptionDetails")
+    if exc:
+        text = exc.get("exception", {}).get("description") or exc.get("text")
+        raise SystemExit(f"driver threw in the page (JS broken?): {text}")
+    if "value" not in res or not res["value"]:
+        raise SystemExit(f"driver returned no checks — the page probably failed to load: {json.dumps(r)[:600]}")
     return res["value"]
 
 
