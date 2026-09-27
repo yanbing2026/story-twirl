@@ -46,6 +46,20 @@ DRIVE = r"""
         Math.abs((db.y + db.height / 2) - (hb.y + hb.height / 2)) <= 4,
         'dy=' + Math.round((db.y + db.height / 2) - (hb.y + hb.height / 2)));
   check('build stamp is visible', /build \d\d-\d\d \d\d:\d\d/.test($('#status').textContent), $('#status').textContent);
+  // Regression: the shelf card must be a rounded RECTANGLE. It inherits the generic
+  // button rule, and a pill radius (999px) with overflow:hidden clips the text rows
+  // inside the curve — the title's first letters vanish. Measure the clip, not the CSS.
+  {
+    const card = document.querySelector('#shelf button');
+    const cs = getComputedStyle(card), rect = card.getBoundingClientRect();
+    const R = Math.min(parseFloat(cs.borderRadius) || 0, Math.min(rect.width, rect.height) / 2);
+    const bl = card.querySelector('.txt span').getBoundingClientRect();
+    const y = bl.top + bl.height / 2 - rect.top;
+    const dy = y < R ? R - y : (y > rect.height - R ? y - (rect.height - R) : 0);
+    const clip = R - Math.sqrt(Math.max(0, R * R - dy * dy));
+    check('story cards are rounded rectangles, not pills', R <= 24, 'radius=' + R + 'px');
+    check('card outline does not cut the card text', clip <= 2, 'clip=' + clip.toFixed(1) + 'px');
+  }
   check('shelf shows three stories', shelfBtns().length === 3, 'n=' + shelfBtns().length);
   check('shelf cards carry cover art', document.querySelectorAll('#shelf button img.cv').length === 3,
         'covers=' + document.querySelectorAll('#shelf button img.cv').length);
