@@ -7,7 +7,9 @@ A story a night, read aloud by the device itself.
   inside the Android app it uses the platform's offline `TextToSpeech` engine. No API keys,
   no server, no accounts.
 - **One file.** `index.html` is the entire product — the website you are looking at and the
-  exact asset that gets bundled into the APK. There is nothing to build for the web.
+  exact asset that gets bundled into the APK. It is **generated** from `stories.json` by
+  `scripts/build-site.py` (which also writes `/stories/<slug>/`, `sitemap.xml`, `robots.txt`) —
+  edit the data or the generator, never the generated file. See `AGENTS.md`.
 
 ## Layout
 
