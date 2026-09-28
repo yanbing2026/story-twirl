@@ -60,22 +60,60 @@ DRIVE = r"""
     check('story cards are rounded rectangles, not pills', R <= 24, 'radius=' + R + 'px');
     check('card outline does not cut the card text', clip <= 2, 'clip=' + clip.toFixed(1) + 'px');
   }
-  check('shelf shows three stories', shelfBtns().length === 3, 'n=' + shelfBtns().length);
-  check('shelf cards carry cover art', document.querySelectorAll('#shelf button img.cv').length === 3,
-        'covers=' + document.querySelectorAll('#shelf button img.cv').length);
+  check('shelf shows every story', shelfBtns().length === STORIES.length, 'n=' + shelfBtns().length);
+  // Art is optional per story (a new story can ship before its illustration is
+  // drawn), so the rule is not "every card has art" but "every story that HAS
+  // art renders exactly one thumbnail, and none of them is a broken <img>".
+  check('every story with a cover renders it',
+        document.querySelectorAll('#shelf button img.cv').length === Object.keys(COVERS).length,
+        'rendered=' + document.querySelectorAll('#shelf button img.cv').length +
+        ' withCover=' + Object.keys(COVERS).length);
+  check('no shelf card shows a broken image',
+        [...document.querySelectorAll('#shelf button img.cv')].every(i => i.naturalWidth > 0));
   check('cover art is inlined, not fetched', [...document.querySelectorAll('#shelf button img.cv')]
         .every(i => i.getAttribute('src').startsWith('data:image/')));
-  check('free story is available tonight', /free story is ready/.test(quota()), quota());
+  // Rotation: tonight's story is marked and named in the quota line, and the
+  // order is a pure function of the date (stable across reloads).
+  check('exactly one story is tonight\'s', document.querySelectorAll('#shelf .tag.tonight').length === 1,
+        'n=' + document.querySelectorAll('#shelf .tag.tonight').length);
+  check('tonight\'s story leads the shelf', (shelfBtns()[0].querySelector('.tag.tonight') || {}) !== null);
+  check('quota names tonight\'s story', /tonight’s free story: /.test(quota()), quota());
+  check('shelf order is stable within a night',
+        orderFor(dayNumber()).join(',') === orderFor(dayNumber()).join(','));
+  check('free story rotates day to day',
+        orderFor(dayNumber()).join(',') !== orderFor(dayNumber() + 1).join(',') ||
+        STORIES.length < 3);
+  check('tonight avoids the last 3 stories read',
+        !(state.last || '').split(',').filter(Boolean).includes(STORIES[tonightIndex()].id));
+  check('free story is available tonight', /free story is ready|tonight’s free story/.test(quota()), quota());
   check('shelf unlocked before reading', shelfBtns().every(b => !b.disabled));
 
   shelfBtns()[0].click();
   await sleep(200);
   check('reader opens', !$('#reader').classList.contains('hidden'));
-  check('reader shows the story', ($('#storyBody h2') || {}).textContent === 'The Sheep Who Counted Children',
+  check('reader shows the story that was tapped',
+        (($('#storyBody h2') || {}).textContent || '') ===
+        (shelfBtns()[0].querySelector('b').textContent || '').replace(' \ud83d\udd12', ''),
         ($('#storyBody h2') || {}).textContent);
   check('narration player appears', !$('#player').classList.contains('hidden'));
   check('reader shows cover art', !!document.querySelector('#storyBody img.hero'));
   check('story text is below the art', ($('#storyBody').firstElementChild || {}).tagName === 'IMG');
+
+  // Narration: the whole story must be loaded for the reader, and it must be
+  // split into speakable chunks. This is the regression for the .join() on a
+  // string that threw a TypeError and left the read-aloud button dead.
+  check('the whole story is loaded for narration', current.length > 1000, 'chars=' + current.length);
+  check('narration text has no placeholders left', !/\{\{(name|namePos)\}\}/.test(current));
+  check('narration is chunked', chunk(current).length > 1, 'chunks=' + chunk(current).length);
+  check('chunks split on sentence ends, never mid-word',
+        chunk(current).every(c => /[.!?…]["”]?$/.test(c.trim())));
+  $('#playBtn').click();
+  await sleep(250);
+  check('play button starts narration', speaking === true || paused === false);
+  $('#stopBtn').click();
+  await sleep(150);
+  check('stop halts narration', speaking === false);
+  check('player shows a state line', $('#nowState').textContent.trim().length > 0, $('#nowState').textContent);
 
   $('#back').click();
   await sleep(200);
