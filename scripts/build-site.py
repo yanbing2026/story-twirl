@@ -85,9 +85,18 @@ def load():
 
 
 def covers_inlined(stories):
+    """Inline each cover as a data URI, skipping any whose file is absent.
+
+    A missing cover must never stop a build: the app already renders a story
+    without art (no COVERS entry, no <img>), and a shelf of 13 stories should
+    still publish while 10 illustrations are still being made. It used to
+    raise FileNotFoundError and take the whole build down with it."""
     out = {}
     for s in stories:
         p = ROOT / s["cover"]
+        if not p.exists():
+            print(f"  no cover yet for {s['id']} (renders without art): {s['cover']}")
+            continue
         out[s["id"]] = "data:image/webp;base64," + base64.b64encode(p.read_bytes()).decode()
     return out
 
@@ -176,13 +185,16 @@ def story_page(s, stories):
     paras = "\n".join(f"<p>{esc(plain(p))}</p>" for p in s["body"])
     others = [o for o in stories if o["slug"] != s["slug"]]
     more = "".join(
-        f'<li><a href="{PREFIX}/stories/{o["slug"]}/"><img src="{SITE}/{o["cover"]}" alt="">'
+        f'<li><a href="{PREFIX}/stories/{o["slug"]}/">{thumb(o)}'
         f'<div class="txt"><b>{esc(o["title"])}</b><br><small>{esc(o["blurb"])}</small></div></a></li>'
         for o in others)
+    # No art yet -> no <img>. A broken image icon is worse than a clean page.
+    art = (f'<img class="cover" src="{PREFIX}/{s["cover"]}" alt="{esc(s["title"])} illustration">'
+           if (ROOT / s["cover"]).exists() else "")
     body = f"""<header><a href="{PREFIX}/">← Story Twirl</a></header>
 <h1>{esc(s["title"])}</h1>
 <div class="meta">{s["minutes"]} min read · ages 3–6 · bedtime story</div>
-<img class="cover" src="{PREFIX}/{s["cover"]}" alt="{esc(s["title"])} illustration">
+{art}
 {paras}
 <div class="lesson"><b>One question for afterwards:</b> {esc(plain(s["lesson"]["ask"]))}<br><br>
 <b>Did you know?</b> {esc(plain(s["lesson"]["fact"]))}</div>
@@ -193,12 +205,18 @@ use your child's name instead of “your child”. One story every night is free
 <ul class="index">{more}</ul>
 <footer>Story Twirl · a story a night · build {build_short()}</footer>"""
     desc = f'{s["title"]}: {plain(s["blurb"])} A {s["minutes"]}-minute bedtime story for ages 3–6.'
-    return page(s["title"], desc, f"{SITE}/stories/{s['slug']}/", body, og_image=s["cover"])
+    return page(s["title"], desc, f"{SITE}/stories/{s['slug']}/", body, og_image=s["cover"] if (ROOT / s["cover"]).exists() else None)
+
+
+def thumb(s):
+    """Cover art if it exists; otherwise nothing. A story is never dropped from
+    a listing just because its illustration has not been drawn yet."""
+    return (f'<img src="{PREFIX}/{s["cover"]}" alt="">' if (ROOT / s["cover"]).exists() else "")
 
 
 def index_page(stories):
     items = "".join(
-        f'<li><a href="{PREFIX}/stories/{s["slug"]}/"><img src="{PREFIX}/{s["cover"]}" alt="">'
+        f'<li><a href="{PREFIX}/stories/{s["slug"]}/">{thumb(s)}'
         f'<div class="txt"><b>{esc(s["title"])}</b><br><small>{esc(s["blurb"])} · {s["minutes"]} min</small></div></a></li>'
         for s in stories)
     body = f"""<header><a href="{PREFIX}/">← Story Twirl</a></header>
