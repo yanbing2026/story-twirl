@@ -61,8 +61,15 @@ DRIVE = r"""
     check('card outline does not cut the card text', clip <= 2, 'clip=' + clip.toFixed(1) + 'px');
   }
   check('shelf shows every story', shelfBtns().length === STORIES.length, 'n=' + shelfBtns().length);
-  check('shelf cards carry cover art', document.querySelectorAll('#shelf button img.cv').length === shelfBtns().length,
-        'covers=' + document.querySelectorAll('#shelf button img.cv').length);
+  // Art is optional per story (a new story can ship before its illustration is
+  // drawn), so the rule is not "every card has art" but "every story that HAS
+  // art renders exactly one thumbnail, and none of them is a broken <img>".
+  check('every story with a cover renders it',
+        document.querySelectorAll('#shelf button img.cv').length === Object.keys(COVERS).length,
+        'rendered=' + document.querySelectorAll('#shelf button img.cv').length +
+        ' withCover=' + Object.keys(COVERS).length);
+  check('no shelf card shows a broken image',
+        [...document.querySelectorAll('#shelf button img.cv')].every(i => i.naturalWidth > 0));
   check('cover art is inlined, not fetched', [...document.querySelectorAll('#shelf button img.cv')]
         .every(i => i.getAttribute('src').startsWith('data:image/')));
   // Rotation: tonight's story is marked and named in the quota line, and the

@@ -68,7 +68,7 @@ def plain(s):
 
 def load():
     stories = json.loads(STORIES.read_text())
-    seen = set()
+    seen, seen_paras = set(), set()
     for s in stories:
         if s["slug"] in seen:
             raise SystemExit(f"duplicate slug: {s['slug']}")
@@ -81,6 +81,28 @@ def load():
         if not (isinstance(s["body"], list) and s["body"]
                 and all(isinstance(p, str) for p in s["body"])):
             raise SystemExit(f"{s['slug']}: body must be a non-empty list of paragraph strings")
+        # Ending contract. Without this, 'THE END.' drifts to a lowercase
+        # 'The end.' and the narrator reads it as just another sentence.
+        if s["body"][-1].strip() != "THE END.":
+            raise SystemExit(f"{s['slug']}: last paragraph must be exactly 'THE END.', "
+                             f"got {s['body'][-1].strip()[:40]!r}")
+        if sum(1 for q in s["body"] if q.strip() == "THE END.") != 1:
+            raise SystemExit(f"{s['slug']}: 'THE END.' must appear exactly once")
+        # Length contract. These are read ALOUD to a 3-6 year old at bedtime.
+        # The three originals ship at 431-521 words; a story twice that long is
+        # not a longer bedtime story, it is one the child falls asleep halfway
+        # through. Cap it rather than trusting the writer's own label.
+        words = sum(len(q.split()) for q in s["body"])
+        if not (250 <= words <= 750):
+            raise SystemExit(f"{s['slug']}: {words} words is outside the 250-750 "
+                             f"bedtime band (stated {s['minutes']} min)")
+        # Prose duplicated across two stories reads as a bug to a parent, and a
+        # copied one-liner is the usual cause. (The shared closing is exempt.)
+        for q in s["body"]:
+            if q.strip() in seen_paras and q.strip() != "THE END.":
+                raise SystemExit(f"{s['slug']}: paragraph reused from another story: "
+                                 f"{q.strip()[:50]!r}")
+            seen_paras.add(q.strip())
     return stories
 
 
