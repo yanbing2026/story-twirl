@@ -416,9 +416,9 @@
   },
   {
     "id": "worm",
-    "slug": "mabel-and-the-slab",
-    "title": "Mabel and the Slab",
-    "blurb": "There is a long way round to the warm heap. Mabel takes it.",
+    "slug": "the-worm-under-the-garden-slab",
+    "title": "The Worm Under the Garden Slab",
+    "blurb": "The long way round to the warm heap. The short way is under the path.",
     "minutes": 5,
     "cover": "img/cover-worm.webp",
     "lesson": {

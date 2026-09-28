@@ -140,6 +140,21 @@ def load():
         # The three originals ship at 431-521 words; a story twice that long is
         # not a longer bedtime story, it is one the child falls asleep halfway
         # through. Cap it rather than trusting the writer's own label.
+        # Blurb length is a layout constraint, not taste: it renders on one line
+        # under the title on the landing-page card. Nothing enforced it, so a
+        # rewrite could quietly wrap and break the grid.
+        if len(s["blurb"]) >= 70:
+            raise SystemExit(f"{s['slug']}: blurb is {len(s['blurb'])} chars, must be under 70")
+        # A slug is the URL a parent might search for. If the title's own words
+        # do not appear in it, the page can only be found by typing the slug --
+        # which is how 'mabel-and-the-slab' ended up invisible.
+        title_words = {w.lower() for w in re.findall(r"[A-Za-z]{4,}", s["title"])}
+        slug_words = set(s["slug"].split("-"))
+        if not (title_words & slug_words):
+            raise SystemExit(
+                f"{s['slug']}: slug shares no word with the title {s['title']!r}, so it "
+                f"matches nothing a parent would search for. Rename it, and list the "
+                f"old slug in REDIRECTS to keep the old URL alive.")
         words = sum(len(q.split()) for q in s["body"])
         if not (250 <= words <= 750):
             raise SystemExit(f"{s['slug']}: {words} words is outside the 250-750 "
@@ -212,6 +227,14 @@ def app_block(stories):
 
 APP = ROOT / "app" / "index.html"
 
+# Slugs that have been published under a different name. GitHub Pages cannot
+# 301, so the old path stays as a real page that redirects. Keep the old path
+# alive for as long as it has been public; delete it once the old URLs have
+# aged out of search results.
+REDIRECTS = {
+    "mabel-and-the-slab": "the-worm-under-the-garden-slab",
+}
+
 
 def build_app(stories):
     """Regenerate the app's data block in place.
@@ -238,7 +261,10 @@ def build_app(stories):
     return len(html_src), len(new)
 
 
-def page(title, desc, canonical, body, og_image=None):
+def page(title, desc, canonical, body, og_image=None, head_extra=""):
+    """head_extra goes inside <head>. A <meta http-equiv="refresh"> placed in
+    <body> is ignored by every browser, so a redirect page has to inject it
+    here rather than in the body markup."""
     og = f'<meta property="og:image" content="{SITE}/{og_image}">' if og_image else ""
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -256,6 +282,7 @@ def page(title, desc, canonical, body, og_image=None):
 <meta property="og:url" content="{canonical}">
 {og}
 <meta name="twitter:card" content="summary_large_image">
+{head_extra}
 <style>{CSS}</style>
 </head>
 <body>
@@ -328,6 +355,29 @@ def not_found_page():
 </div>"""
     return page("Not found — Story Twirl", "This page does not exist.",
                 f"{SITE}/404.html", body)
+
+
+def redirect_page(old_slug, new_slug):
+    """A real page at the old URL that forwards to the new one.
+
+    GitHub Pages has no redirect support, so this is the honest way to keep an
+    old link alive: the visitor lands on a page that immediately forwards, and
+    the canonical link tells a crawler the new address. The meta refresh also
+    covers no-JS, and the visible link is there if the script is blocked."""
+    dest = f"{PREFIX}/stories/{new_slug}/"
+    # A plain string, not an f-string with an HTML entity: page() escapes the
+    # title, so writing &mdash; here produced "&amp;mdash;".
+    body = """<div class="nf">
+  <h1>This story has a new name</h1>
+  <p class="lead">It is the same story, it just lives somewhere else now.</p>
+  <a class="btn" href="__DEST__">Go to the story</a>
+</div>""".replace("__DEST__", dest)
+    # The refresh must live in <head>; the script stays in the body for the
+    # common case, and the visible link above is the no-JS fallback.
+    head_extra = (f'<meta http-equiv="refresh" content="0; url={dest}">'
+                  f'<script>location.replace({dest!r});</script>')
+    return page("Moved - Story Twirl", "This page has moved.", dest, body,
+                head_extra=head_extra)
 
 
 def story_page(s, stories):
@@ -420,6 +470,12 @@ def main():
     out.append("index.html (landing page)")
     (ROOT / "404.html").write_text(not_found_page())
     out.append("404.html")
+
+    for old_slug, new_slug in REDIRECTS.items():
+        d = ROOT / "stories" / old_slug
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "index.html").write_text(redirect_page(old_slug, new_slug))
+        out.append(f"stories/{old_slug}/ -> {new_slug} (redirect)")
 
     (ROOT / "stories").mkdir(exist_ok=True)
     (ROOT / "stories/index.html").write_text(index_page(stories))
