@@ -14,13 +14,19 @@ A story a night, read aloud by the device itself.
 ## Layout
 
 ```
-index.html                 the whole web app (site root, served by GitHub Pages)
+index.html                 landing page: what this is, for whom, the story wall
+app/index.html             the reader app (the whole web app, in one file)
+404.html                   a not-found page that offers a way back
 ```
+
+`/` is what a parent lands on and what a search engine or a chat preview reads.
+`/app/` is the app itself, which needs JavaScript. They are generated from the
+same `stories.json`, so the two can never disagree about what exists.
 
 The Android shell lives in `~/projects/StoryTwirl` and pulls this file in as its asset:
 
 ```bash
-bash ~/projects/StoryTwirl/scripts/sync-web-asset.sh ~/projects/story-twirl/index.html
+bash ~/projects/StoryTwirl/scripts/sync-web-asset.sh ~/projects/story-twirl/app/index.html
 ```
 
 That script is the only thing keeping the site and the app in sync — run it before every APK
@@ -38,7 +44,7 @@ const Bridge = (typeof AndroidBridge !== 'undefined' && AndroidBridge && Android
 - inside the APK: `AndroidBridge.speak(text, lang)`, `AndroidBridge.stop()` → native offline TTS
 - in any browser: `speechSynthesis` (no bridge, no error)
 
-Nothing else in `index.html` needs to change for the app.
+Nothing else in `app/index.html` needs to change for the app.
 
 ## How the gate works (and its honest ceiling)
 

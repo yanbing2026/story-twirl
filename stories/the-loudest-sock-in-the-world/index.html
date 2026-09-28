@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#1b1436">
-<meta name="build" content="79ce4f0 2026-09-28T09:24">
+<meta name="build" content="21d903a 2026-09-28T10:04">
 <title>The Loudest Sock in the World</title>
 <meta name="description" content="The Loudest Sock in the World: A new sock arrives. The sock has opinions. A 5-minute bedtime story for ages 3–6.">
 <link rel="canonical" href="https://yanbing2026.github.io/story-twirl/stories/the-loudest-sock-in-the-world/">
@@ -38,6 +38,47 @@ ul.index a{display:block;text-decoration:none;color:var(--ink)}
 ul.index img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
 ul.index .txt{padding:12px 14px}
 ul.index small{color:var(--dim)}
+
+/* ---- landing page only (the app has its own stylesheet) ---- */
+.hero{padding:38px 0 8px;text-align:center}
+.hero .dot{display:inline-block;width:12px;height:12px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 14px rgba(255,209,102,.5);margin-bottom:14px}
+.hero h1{font-size:34px;line-height:1.18;margin:0 0 14px;letter-spacing:-.4px}
+.lead{color:var(--dim);font-size:17px;line-height:1.65;margin:0 auto 24px;max-width:46ch}
+a.btn{display:inline-block;background:var(--accent);color:#2a1c00;font-weight:650;
+  border-radius:999px;padding:14px 26px;text-decoration:none;font-size:17px}
+a.btn.big{padding:16px 34px;font-size:18px}
+a.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+a.btn:hover{filter:brightness(1.07)}
+.facts{display:grid;gap:12px;margin:30px 0}
+.facts div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 17px}
+.facts b{display:block;font-size:16px;margin-bottom:4px;color:var(--ink)}
+.facts span{color:var(--dim);font-size:14.5px;line-height:1.55}
+.wall h2{font-size:23px;margin:34px 0 4px}
+.wall .sub{color:var(--dim);font-size:15px;margin:0 0 18px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+a.c{display:block;text-decoration:none;color:var(--ink);background:var(--card);
+  border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:transform .12s ease}
+a.c:hover{transform:translateY(-3px)}
+a.c img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#150f2c}
+a.c b{display:block;padding:12px 14px 2px;font-size:16px;line-height:1.3}
+a.c small{display:block;padding:0 14px 10px;color:var(--dim);font-size:13.5px;line-height:1.45}
+a.c em{display:block;padding:0 14px 14px;color:var(--accent);font-size:12.5px;
+  font-style:normal;font-weight:650;letter-spacing:.4px}
+.cta{text-align:center;margin:34px 0}
+.cta h2{margin-bottom:8px}
+.cta p{color:var(--dim)}
+.cta a.btn{margin:6px 5px}
+.nf{text-align:center;padding-top:60px}
+.nf h1{margin-bottom:10px}
+.nf .lead{margin-bottom:26px}
+.nf .btn{margin:5px}
+@media (min-width:860px){
+  .wrap{max-width:900px;padding:26px 24px 70px}
+  .facts{grid-template-columns:repeat(3,1fr);gap:14px}
+  .hero{padding:54px 0 10px}
+  .hero h1{font-size:44px;max-width:19ch}
+}
 </style>
 </head>
 <body>
@@ -82,7 +123,7 @@ use your child's name instead of “your child”. One story every night is free
 <a class="btn" href="/story-twirl/">Open Story Twirl</a></div>
 <h2 style="font-size:20px">More stories</h2>
 <ul class="index"><li><a href="/story-twirl/stories/the-sheep-who-counted-children/"><img src="/story-twirl/img/cover-sheep.webp" alt=""><div class="txt"><b>The Sheep Who Counted Children</b><br><small>A sheep gets the job backwards — and it works.</small></div></a></li><li><a href="/story-twirl/stories/marvin-and-the-very-serious-puddle/"><img src="/story-twirl/img/cover-puddle.webp" alt=""><div class="txt"><b>Marvin and the Very Serious Puddle</b><br><small>A puddle has a very important job. Marvin has boots.</small></div></a></li><li><a href="/story-twirl/stories/the-boat-with-no-light/"><img src="/story-twirl/img/cover-moon.webp" alt=""><div class="txt"><b>The Boat With No Light</b><br><small>The lantern goes out. The little boat finds the bank by ear.</small></div></a></li><li><a href="/story-twirl/stories/the-book-that-was-left-out/"><img src="/story-twirl/img/cover-library.webp" alt=""><div class="txt"><b>The Book That Was Left Out</b><br><small>One book stays out after closing time. Nobody came back for it.</small></div></a></li><li><a href="/story-twirl/stories/the-shell-that-was-not-broken/"><img src="/story-twirl/img/cover-beach.webp" alt=""><div class="txt"><b>The Shell That Was Not Broken</b><br><small>A shell with a crack down it. Somebody small is moving inside.</small></div></a></li><li><a href="/story-twirl/stories/the-music-box-in-the-attic/"><img src="/story-twirl/img/cover-attic.webp" alt=""><div class="txt"><b>The Music Box in the Attic</b><br><small>Everything in the attic is finished. One small thing still plays.</small></div></a></li><li><a href="/story-twirl/stories/the-kettle-that-would-not-go-quiet/"><img src="/story-twirl/img/cover-kettle.webp" alt=""><div class="txt"><b>The Kettle That Would Not Go Quiet</b><br><small>The kitchen will not stop clicking. Nobody can say why.</small></div></a></li><li><a href="/story-twirl/stories/mr-barrows-last-round/"><img src="/story-twirl/img/cover-postman.webp" alt=""><div class="txt"><b>Mr. Barrow&#x27;s Last Round</b><br><small>One thing left in the bag, and the last house has no number.</small></div></a></li><li><a href="/story-twirl/stories/the-bike-that-would-not-go-slow/"><img src="/story-twirl/img/cover-bicycle.webp" alt=""><div class="txt"><b>The Bike That Would Not Go Slow</b><br><small>One small problem with a good bike: going slowly.</small></div></a></li><li><a href="/story-twirl/stories/mabel-and-the-slab/"><img src="/story-twirl/img/cover-worm.webp" alt=""><div class="txt"><b>Mabel and the Slab</b><br><small>There is a long way round to the warm heap. Mabel takes it.</small></div></a></li><li><a href="/story-twirl/stories/the-sweater-with-one-long-sleeve/"><img src="/story-twirl/img/cover-sweater.webp" alt=""><div class="txt"><b>The Sweater with One Long Sleeve</b><br><small>One sleeve is much too long. It takes a whole night to see why.</small></div></a></li><li><a href="/story-twirl/stories/the-night-the-sky-filled-up/"><img src="/story-twirl/img/cover-stars.webp" alt=""><div class="txt"><b>The Night the Sky Filled Up</b><br><small>A cat counts the sky. Three stars, one owl, and a long wait.</small></div></a></li></ul>
-<footer>Story Twirl · a story a night · build 09-28 09:24</footer>
+<footer>Story Twirl · a story a night · build 09-28 10:04</footer>
 </div>
 </body>
 </html>

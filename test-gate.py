@@ -6,7 +6,7 @@ money logic by clicking the real buttons (no mocks): free story -> shelf locks
 -> membership code -> shelf unlocks -> the child's name reaches the story text.
 
 Run:
-  ~/projects/story-twirl/test-gate.py                       # tests the live site
+  ~/projects/story-twirl/test-gate.py                       # tests the live app
   ~/projects/story-twirl/test-gate.py http://localhost:8000 # or any URL
   ~/projects/story-twirl/test-gate.py --check               # assertions only, no browser
 
@@ -25,7 +25,7 @@ import aiohttp
 import websockets
 
 CDP = "http://127.0.0.1:9222"
-DEFAULT_URL = "https://yanbing2026.github.io/story-twirl/"
+DEFAULT_URL = "https://yanbing2026.github.io/story-twirl/app/"
 
 # The whole test, in page context. Clicks the real DOM the way a thumb would.
 DRIVE = r"""
@@ -138,6 +138,16 @@ DRIVE = r"""
   check('membership card closes itself', $('#member').classList.contains('hidden'));
 
   check('name is stored on device', typeof localStorage !== 'undefined' && localStorage.getItem('storytwirl.v1') !== null);
+
+  // The app lives at /app/ now, so it must work at a SUBPATH. Every cover is a
+  // data URI, but a relative <img> or a root-absolute link would break here and
+  // nowhere else, which is exactly the kind of bug that only shows up after the
+  // move. Assert the page still works where it now lives.
+  check('app runs from a subpath', location.pathname.indexOf('/app') >= 0, location.pathname);
+  check('covers survive the subpath (inlined, not relative)',
+        [...document.querySelectorAll('#shelf button img.cv')].every(i => i.getAttribute('src').startsWith('data:image/')));
+  check('no broken images after the move',
+        [...document.querySelectorAll('#shelf button img.cv')].every(i => i.naturalWidth > 0));
   return out;
 })()
 """

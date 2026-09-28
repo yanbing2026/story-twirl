@@ -8,21 +8,25 @@
 
 ## 数据源与生成物（最重要的一节）
 - **内容源 = `stories.json`**：每个故事含 `id, slug, title, blurb, minutes, cover, lesson, body`。改故事只改这个文件。
-- **生成器 = `python3 scripts/build-site.py`**：重写 `index.html` 的数据块与 BUILD 戳，并生成
-  `/stories/<slug>/`、`stories/index.html`、`sitemap.xml`、`robots.txt`。它同时是数据契约的持有者
-  （缺字段会直接报错退出）。
+- **生成器 = `python3 scripts/build-site.py`**：重写 `app/index.html` 的数据块与 BUILD 戳，并生成
+  `/`（落地页）、`404.html`、`/stories/<slug>/`、`stories/index.html`、`sitemap.xml`、`robots.txt`。
+  它同时是数据契约的持有者（缺字段会直接报错退出）。
 - 只校验不写盘：`python3 scripts/build-site.py --check`。
-- **绝不手改生成物**：`index.html`、`stories/**`、`sitemap.xml`、`robots.txt` 都归生成器管，
-  手改会在下一次构建被静默覆盖。要改样式或结构，改 `scripts/build-site.py` 里的模板。
+- **绝不手改生成物**：`index.html`（落地页）、`app/index.html`、`stories/**`、`404.html`、
+  `sitemap.xml`、`robots.txt` 都归生成器管，手改会在下一次构建被静默覆盖。要改落地页/故事页的
+  样式或结构，改 `scripts/build-site.py` 里的模板。
+- **唯一的例外**：`app/index.html` 的 `<head>`（以及读者界面的 HTML/CSS/JS 主体）是手写的，
+  生成器只替换其中的 `STORIES:BEGIN…COVERS:END` 数据块。构建会断言 `<head>` 里
+  `description` / `og:title` / `og:image` / `canonical` 还在——少了任何一个构建直接失败。
 
 ## 动手前后必须跑
 ```bash
 python3 scripts/build-site.py --check    # 数据契约校验
 python3 scripts/build-site.py            # 重新生成
 python3 test-gate.py --check             # 断言自检（不开浏览器）
-python3 test-gate.py                     # 端到端自检：24 项必须全过
+python3 test-gate.py http://localhost:8000/app/   # 端到端自检：41 项必须全过
 ```
-`test-gate.py` 驱动真实页面点击真实按钮（免费读完 → 书架锁住 → 会员码解锁），需要
+`test-gate.py` 驱动真实页面点击真实按钮（免费读完 → 书架锁住 → 会员码解锁），默认测 `/app/`，需要
 `chromium --headless=new --remote-debugging-port=9222`；没有会自动拉起。它带反回归项：
 卡片必须是圆角矩形而不是药丸、标题必须单行——这两个都是真实踩过的坑。
 
@@ -41,3 +45,5 @@ python3 test-gate.py                     # 端到端自检：24 项必须全过
 - 仓库里不放任何密钥：`.env`、token、口令一律不进 git。
 - `story-twirl-1.0.apk` 是冻结的旧站快照（App 暂时不动）；
   `~/projects/StoryTwirl/scripts/sync-web-asset.sh` 是站点与 App 之间唯一的同步通道。
+  **它同步的文件现在是 `app/index.html`（不再是 `index.html`）**——`index.html` 已经是落地页了，
+  传给 APK 会得到一个没有故事书���的错误应用。
