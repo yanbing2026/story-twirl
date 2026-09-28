@@ -65,6 +65,14 @@
   .list button span{font-size:13px;color:var(--dim);font-weight:400}
   .list button .txt{padding:12px 14px}
   .list button img.cv{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#150f2c}
+  .list button .txt b{line-height:1.3}
+  .list button .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .tag{display:inline-block;font-size:11px;line-height:1.6;padding:2px 9px;border-radius:999px;
+    background:#241a4a;border:1px solid var(--line);color:var(--dim);font-weight:600;letter-spacing:.3px}
+  .tag.tonight{background:var(--accent);border-color:var(--accent);color:#2a1c00}
+  .tag.read{background:#1d3b34;border-color:#2c6154;color:var(--accent2)}
+  .list button.is-read .cv{opacity:.55}
+  .list button.is-read b{color:var(--dim)}
   .hero{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:12px;margin:0 0 16px}
   .hidden{display:none!important}
   footer{margin-top:26px;font-size:13px;color:var(--dim);text-align:center}
@@ -149,36 +157,76 @@
 <script>
 /* ------------------------------------------------------------------ *
  *  narration: one entry point, two backends.
- *  Browser -> speechSynthesis.  Android APK -> AndroidBridge (native
- *  offline TextToSpeech).  Nothing else in this file needs to change.
+ *  Browser -> speechSynthesis, queued in chunks.
+ *  Android APK -> AndroidBridge (native offline TextToSpeech), one call.
+ *  Nothing else in this file needs to change.
  * ------------------------------------------------------------------ */
 const Bridge = (typeof AndroidBridge !== 'undefined' && AndroidBridge && AndroidBridge.isNative) ? AndroidBridge : null;
 const LANG = 'en-US';
-let speaking = false;
+let speaking = false, paused = false, queue = [], qAt = 0, current = '';
 
-function say(text){
-  stopSpeaking();
-  if (Bridge) { Bridge.speak(text, LANG); speaking = true; paint('speaking (device voice)'); return; }
-  if (!('speechSynthesis' in window)) { paint('this browser has no speech engine'); return; }
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = LANG; u.rate = 0.92; u.pitch = 1.06;
-  u.onend = () => { speaking = false; paint('finished'); };
-  u.onerror = () => { speaking = false; paint('voice error — try again'); };
-  speechSynthesis.speak(u);
-  speaking = true; paint('speaking');
+/* Long stories must be cut into chunks. Most engines silently stop after a
+ * few hundred characters, and one 4-minute utterance is a 4-minute freeze
+ * if a single chunk is dropped. Split on sentence ends, never mid-word. */
+function chunk(text, max){
+  max = max || 200;
+  const sents = text.match(/[^.!?…]+[.!?…]+["”]?|[^.!?…]+$/g) || [text];
+  const out = []; let buf = '';
+  sents.forEach(s => {
+    s = s.trim(); if (!s) return;
+    if (!buf) buf = s;
+    else if ((buf + ' ' + s).length <= max) buf += ' ' + s;
+    else { out.push(buf); buf = s; }
+  });
+  if (buf) out.push(buf);
+  return out;
 }
-function stopSpeaking(){
-  if (Bridge) { if (Bridge.stop) Bridge.stop(); }
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
-  speaking = false; paint('stopped');
-}
+
+function setBtn(t){ document.getElementById('playBtn').textContent = t; }
+
 function paint(s){ document.getElementById('nowState').textContent = s; }
+
+function say(){
+  stopSpeaking(true);
+  if (Bridge) { Bridge.speak(current, LANG); speaking = true; setBtn('❚❚ pause'); paint('speaking (device voice)'); return; }
+  if (!('speechSynthesis' in window)) { paint('this browser has no speech engine'); return; }
+  if (!current) { paint('nothing to read'); return; }
+  queue = chunk(current); qAt = 0; speaking = true; paused = false;
+  setBtn('❚❚ pause'); next();
+}
+
+function next(){
+  if (!speaking || paused) return;
+  if (qAt >= queue.length) { speaking = false; setBtn('▶︎ read to me'); paint('finished'); return; }
+  const u = new SpeechSynthesisUtterance(queue[qAt]);
+  u.lang = LANG; u.rate = 0.92; u.pitch = 1.06;
+  u.onend = () => { qAt++; paint('speaking ' + Math.min(qAt + 1, queue.length) + '/' + queue.length); next(); };
+  u.onerror = () => { speaking = false; setBtn('▶︎ read to me'); paint('voice error — try again'); };
+  paint('speaking ' + (qAt + 1) + '/' + queue.length);
+  speechSynthesis.speak(u);
+}
+
+function pauseResume(){
+  if (!speaking && !paused) { say(); return; }
+  if (paused) { paused = false; setBtn('❚❚ pause'); paint('speaking'); next(); }
+  else if (speaking) { paused = true; speechSynthesis.cancel(); setBtn('▶︎ continue'); paint('paused'); }
+}
+
+/* silent=true: used internally before starting a new narration, so the UI
+ * does not flash "stopped" on the way to "speaking". */
+function stopSpeaking(silent){
+  if (Bridge && Bridge.stop) Bridge.stop();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  speaking = false; paused = false; queue = []; qAt = 0;
+  if (document.getElementById('playBtn')) setBtn('▶︎ read to me');
+  if (!silent) paint('stopped');
+}
 
 /* ------------------------------------------------------------------ *
  *  stories
  * ------------------------------------------------------------------ */
 /* STORIES:BEGIN — generated by scripts/build-site.py from stories.json; do not hand-edit */
-const BUILD = "09-26 22:24";
+const BUILD = "09-27 23:11";
 const STORIES = [
  {
   id: "sheep", title: "The Sheep Who Counted Children",
@@ -302,7 +350,8 @@ function today(){ const d = new Date(); return d.getFullYear()+'-'+(d.getMonth()
 function load(){
   let s = {};
   try { s = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e){}
-  return { member: !!s.member, code: s.code || '', day: s.day || '', used: s.used || 0, name: s.name || '', read: s.read || [] };
+  return { member: !!s.member, code: s.code || '', day: s.day || '', used: s.used || 0,
+           name: s.name || '', read: s.read || [], last: s.last || '' };
 }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
 function rollover(){ if (state.day !== today()) { state.day = today(); state.used = 0; save(); } }
@@ -318,6 +367,60 @@ function fill(s){
 }
 
 /* ------------------------------------------------------------------ *
+ *  nightly rotation
+ *
+ *  "A story a night" has to be literally true: the free story must be a
+ *  DIFFERENT one tomorrow, and a member must never open the app to the
+ *  same three stories forever. Everything below is a pure function of the
+ *  calendar date, so the shelf is identical on every reload on the same
+ *  night (a rotating story that reshuffles when you refresh is worse than
+ *  no rotation) and differs on the next.
+ * ------------------------------------------------------------------ */
+
+/* Days since the epoch, in LOCAL time. toISOString() would shift the day for
+ * anyone east or west of UTC, and a child in Auckland would get tomorrow's
+ * story tonight. */
+function dayNumber(){
+  const d = new Date();
+  return Math.floor((d - d.getTimezoneOffset() * 60000) / 86400000);
+}
+
+/* Small deterministic hash -> the same date always produces the same seed,
+ * on every device, with no server and no stored state. */
+function seedFor(n){
+  let x = (n ^ 0x9e3779b9) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
+  return (x ^ (x >>> 16)) >>> 0;
+}
+
+/* Order the whole shelf for a given day: a seeded shuffle, rotated so the
+ * free story comes first. A rotation (not a fixed shelf) is what stops a
+ * member from always seeing the same three covers. */
+function orderFor(day){
+  const n = STORIES.length;
+  if (n <= 1) return STORIES.map((_, i) => i);
+  const arr = Array.from({length: n}, (_, i) => i);
+  let s = seedFor(day);
+  for (let i = n - 1; i > 0; i--){                 // Fisher-Yates, seeded
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    const j = s % (i + 1);
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+
+/* Tonight's free story = the first story in tonight's order that is not in
+ * the last few stories already read. Without that, a short shelf means the
+ * child gets the same three in a loop for a fortnight. */
+function tonightIndex(){
+  const recent = (state.last || '').split(',').filter(Boolean);
+  const order = orderFor(dayNumber());
+  for (const i of order) if (!recent.includes(STORIES[i].id)) return i;
+  return order[0];
+}
+
+/* ------------------------------------------------------------------ *
  *  ui
  * ------------------------------------------------------------------ */
 const $ = id => document.getElementById(id);
@@ -327,21 +430,38 @@ function renderShelf(){
   $('kidName').value = state.name;
   const shelf = $('shelf'); shelf.innerHTML = '';
   const locked = freeUsed() && !isMember();
+  const tonight = tonightIndex();
 
-  STORIES.forEach((s, i) => {
+  /* Rotated order: tonight's story leads, the rest follow in tonight's order,
+   * so a member sees a different shelf every night. */
+  const order = orderFor(dayNumber());
+  const lead = order.splice(order.indexOf(tonight), 1)[0];
+  order.unshift(lead);
+
+  order.forEach(i => {
+    const s = STORIES[i];
+    if (!s) return;
     const b = document.createElement('button');
     const isLocked = locked;
+    const isRead = (state.read || []).includes(s.id);
     const cv = (typeof COVERS !== 'undefined' && COVERS[s.id])
       ? '<img class="cv" src="' + COVERS[s.id] + '" alt="">' : '';
+    const tags = [];
+    if (i === tonight) tags.push('<span class="tag tonight">tonight</span>');
+    if (isRead && i !== tonight) tags.push('<span class="tag read">read before</span>');
     b.innerHTML = cv + '<div class="txt"><b>' + fill(s.title) + (isLocked ? ' 🔒' : '') +
-                   '</b><span>' + fill(s.blurb) + ' · ' + s.minutes + ' min</span></div>';
+                   '</b><span>' + fill(s.blurb) + ' · ' + s.minutes + ' min</span>' +
+                   (tags.length ? '<span class="tags">' + tags.join('') + '</span>' : '') +
+                   '</div>';
+    if (isRead) b.classList.add('is-read');
     b.disabled = isLocked;
     b.onclick = () => openStory(i);
     shelf.appendChild(b);
   });
 
   $('quota').textContent = isMember() ? 'membership · unlimited'
-                        : (freeUsed() ? 'free story used tonight' : 'tonight’s free story is ready');
+                        : (freeUsed() ? 'free story used tonight'
+                                      : 'tonight’s free story: ' + STORIES[tonight].title);
   $('gateCard').classList.toggle('hidden', isMember());
   $('gateBody').textContent = freeUsed()
     ? 'You have read tonight’s free story. The shelf opens again after midnight — or unlock everything now.'
@@ -353,6 +473,10 @@ function renderShelf(){
 function openStory(i){
   const s = STORIES[i];
   if (!isMember()) { rollover(); state.used += 1; if (!state.read.includes(s.id)) state.read.push(s.id); save(); }
+  /* Remember the last three stories read so tonightIndex() can avoid
+   * repeating them on a short shelf. */
+  if (!state.last.includes(s.id)) state.last = (state.last.split(',').concat(s.id).filter(Boolean).slice(-3).join(','));
+  save();
   $('library').classList.add('hidden'); $('member').classList.add('hidden');
   $('reader').classList.remove('hidden');
   const hero = (typeof COVERS !== 'undefined' && COVERS[s.id]) ? '<img class="hero" src="' + COVERS[s.id] + '" alt="">' : '';
@@ -365,13 +489,15 @@ function openStory(i){
   $('nowTitle').textContent = fill(s.title);
   paint('ready');
   window.scrollTo({top:0});
-  current = fill(s.body[0].join(' '));
+  /* The whole story as one text for the narrator. s.body is a FLAT list of
+   * paragraph STRINGS — .join, not .join on a string (which threw a TypeError
+   * and silently killed the read-aloud button). */
+  current = s.body.map(p => fill(p)).join(' ');
 }
 
-let current = '';
 $('back').onclick = () => { stopSpeaking(); $('reader').classList.add('hidden'); $('player').classList.add('hidden'); $('library').classList.remove('hidden'); renderShelf(); };
-$('playBtn').onclick = () => { if (speaking) { stopSpeaking(); $('playBtn').textContent = '▶︎ read to me'; } else { say(current); $('playBtn').textContent = '❚❚ pause'; } };
-$('stopBtn').onclick = () => { stopSpeaking(); $('playBtn').textContent = '▶︎ read to me'; };
+$('playBtn').onclick = () => { if (!current) return; pauseResume(); };
+$('stopBtn').onclick = () => { stopSpeaking(); };
 $('kidName').oninput = e => { state.name = e.target.value; save(); renderShelf(); };
 $('openMember').onclick = () => { $('library').classList.add('hidden'); $('member').classList.remove('hidden'); };
 $('cancelMember').onclick = () => { $('member').classList.add('hidden'); $('library').classList.remove('hidden'); };
