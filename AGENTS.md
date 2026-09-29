@@ -20,11 +20,12 @@
 python3 scripts/build-site.py --check    # 数据契约校验
 python3 scripts/build-site.py            # 重新生成
 python3 test-gate.py --check             # 断言自检（不开浏览器）
-python3 test-gate.py                     # 端到端自检：24 项必须全过
+python3 test-gate.py                     # 端到端自检：31 项必须全过
 ```
 `test-gate.py` 驱动真实页面点击真实按钮（免费读完 → 书架锁住 → 会员码解锁），需要
 `chromium --headless=new --remote-debugging-port=9222`；没有会自动拉起。它带反回归项：
-卡片必须是圆角矩形而不是药丸、标题必须单行——这两个都是真实踩过的坑。
+卡片必须是圆角矩形而不是药丸、标题必须单行、播放键必须真的派发出第一段朗读——
+最后这条注意：CI 的 headless 没有音频引擎，断言队列状态（`qi`/`curU`），不要断言声音；这些都是真实踩过的坑。
 
 ## 发布与验证
 - 发布 = GitHub Pages（`master` 分支根目录），合并后自动构建。
