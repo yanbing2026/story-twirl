@@ -3,7 +3,7 @@
 
 Drives the real page in an already-running Chromium over CDP and asserts the
 money logic by clicking the real buttons (no mocks): free story -> shelf locks
--> membership code -> shelf unlocks -> the child's name reaches the story text.
+-> membership code -> shelf unlocks -> the child's name reaches the page.
 
 Run:
   ~/projects/story-twirl/test-gate.py                       # tests the live site
@@ -68,6 +68,17 @@ DRIVE = r"""
   check('free story is available tonight', /free story is ready/.test(quota()), quota());
   check('shelf unlocked before reading', shelfBtns().every(b => !b.disabled));
 
+  {
+    const ref = shelfBtns()[0];
+    $('#kidName').value = 'Mia<';
+    $('#kidName').dispatchEvent(new Event('input'));
+    check('typing a name does not rebuild the shelf', shelfBtns()[0] === ref);
+    check('name is stored sanitized', JSON.parse(localStorage.getItem('storytwirl.v1')).name === 'Mia',
+          JSON.parse(localStorage.getItem('storytwirl.v1')).name);
+    check('name reaches the page', $('#status').textContent.indexOf('Mia') > -1, $('#status').textContent);
+    $('#kidName').value = ''; $('#kidName').dispatchEvent(new Event('input'));
+  }
+
   shelfBtns()[0].click();
   await sleep(200);
   check('reader opens', !$('#reader').classList.contains('hidden'));
@@ -77,11 +88,19 @@ DRIVE = r"""
   check('reader shows cover art', !!document.querySelector('#storyBody img.hero'));
   check('story text is below the art', ($('#storyBody').firstElementChild || {}).tagName === 'IMG');
 
+  check('narration has the story text', paras.join(' ').length > 400, 'len=' + paras.join(' ').length);
+  $('#playBtn').click();                       // no await: assert synchronously, before any utterance event can fire
+  check('play starts narration', qi === 1 && curU !== null, 'qi=' + qi);
+  $('#stopBtn').click();
+  check('stop resets the play label', $('#playBtn').textContent.indexOf('read to me') > -1, $('#playBtn').textContent);
+
   $('#back').click();
   await sleep(200);
   check('free story is consumed', /free story used tonight/.test(quota()), quota());
-  check('shelf locks after one story', shelfBtns().every(b => b.disabled));
-  check('locked stories are marked', shelfBtns().every(b => b.innerHTML.includes('\u{1F512}')));
+  check('shelf locks new stories after one read', shelfBtns().slice(1).every(b => b.disabled) && !shelfBtns()[0].disabled,
+        'disabled=' + shelfBtns().map(b => b.disabled).join(','));
+  check('locked stories marked, read story is not',
+        shelfBtns().slice(1).every(b => b.innerHTML.includes('\u{1F512}')) && !shelfBtns()[0].innerHTML.includes('\u{1F512}'));
 
   $('#openMember').click();
   await sleep(150);
@@ -100,6 +119,10 @@ DRIVE = r"""
   check('membership card closes itself', $('#member').classList.contains('hidden'));
 
   check('name is stored on device', typeof localStorage !== 'undefined' && localStorage.getItem('storytwirl.v1') !== null);
+
+  { state.day = '2000-1-1'; rollover();
+    check("rollover resets quota and today's reads", state.used === 0 && state.read.length === 0,
+          'used=' + state.used + ' read=' + state.read.length); }
   return out;
 })()
 """
