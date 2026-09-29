@@ -20,7 +20,7 @@
 python3 scripts/build-site.py --check    # 数据契约校验
 python3 scripts/build-site.py            # 重新生成
 python3 test-gate.py --check             # 断言自检（不开浏览器）
-python3 test-gate.py                     # 端到端自检：31 项必须全过
+python3 test-gate.py                     # 端到端自检：34 项必须全过
 ```
 `test-gate.py` 驱动真实页面点击真实按钮（免费读完 → 书架锁住 → 会员码解锁），需要
 `chromium --headless=new --remote-debugging-port=9222`；没有会自动拉起。它带反回归项：

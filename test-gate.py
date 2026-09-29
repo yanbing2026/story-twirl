@@ -67,6 +67,10 @@ DRIVE = r"""
         .every(i => i.getAttribute('src').startsWith('data:image/')));
   check('free story is available tonight', /free story is ready/.test(quota()), quota());
   check('shelf unlocked before reading', shelfBtns().every(b => !b.disabled));
+  check('root page has share tags', !!document.querySelector('meta[name="description"]') && !!document.querySelector('meta[property="og:image"]'));
+  check('library links to the story index', !!document.querySelector('footer a[href="stories/"]'));
+  document.querySelector('.buyBtn').click();
+  check('buy button explains checkout state', /not wired up/i.test($('#gateBody').textContent), $('#gateBody').textContent.slice(0, 60));
 
   {
     const ref = shelfBtns()[0];
