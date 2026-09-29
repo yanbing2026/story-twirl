@@ -86,20 +86,19 @@ DRIVE = r"""
   shelfBtns()[0].click();
   await sleep(200);
   check('reader opens', !$('#reader').classList.contains('hidden'));
-  check('reader shows the story', ($('#storyBody h2') || {}).textContent === 'The Sheep Who Counted Children',
-        ($('#storyBody h2') || {}).textContent);
-  check('narration player appears', !$('#player').classList.contains('hidden'));
+  check('reader shows the story', ($('#storyTitle') || {}).textContent === 'The Sheep Who Counted Children',
+        ($('#storyTitle') || {}).textContent);
+  check('play control sits beside the title', document.querySelector('#storyTitle').parentElement.contains(document.getElementById('playBtn')));
   check('reader shows cover art', !!document.querySelector('#storyBody img.hero'));
   check('story text is below the art', ($('#storyBody').firstElementChild || {}).tagName === 'IMG');
 
   check('narration has the story text', paras.join(' ').length > 400, 'len=' + paras.join(' ').length);
   $('#playBtn').click();                       // no await: assert synchronously, before any utterance event can fire
   check('play starts narration', qi === 1 && curU !== null, 'qi=' + qi);
-  $('#stopBtn').click();
-  check('stop resets the play label', $('#playBtn').textContent.indexOf('read to me') > -1, $('#playBtn').textContent);
 
   $('#back').click();
   await sleep(200);
+  check('back stops narration and resets label', $('#playBtn').textContent.indexOf('read to me') > -1, $('#playBtn').textContent);
   check('free story is consumed', /free story used tonight/.test(quota()), quota());
   check('shelf locks new stories after one read', shelfBtns().slice(1).every(b => b.disabled) && !shelfBtns()[0].disabled,
         'disabled=' + shelfBtns().map(b => b.disabled).join(','));
