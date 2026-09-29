@@ -60,9 +60,9 @@ DRIVE = r"""
     check('story cards are rounded rectangles, not pills', R <= 24, 'radius=' + R + 'px');
     check('card outline does not cut the card text', clip <= 2, 'clip=' + clip.toFixed(1) + 'px');
   }
-  check('shelf shows three stories', shelfBtns().length === 3, 'n=' + shelfBtns().length);
-  check('shelf cards carry cover art', document.querySelectorAll('#shelf button img.cv').length === 3,
-        'covers=' + document.querySelectorAll('#shelf button img.cv').length);
+  check('shelf shows every story', shelfBtns().length === STORIES.length, 'n=' + shelfBtns().length + '/' + STORIES.length);
+  check('shelf cards carry cover art', document.querySelectorAll('#shelf button img.cv').length === STORIES.length,
+        'covers=' + document.querySelectorAll('#shelf button img.cv').length + '/' + STORIES.length);
   check('cover art is inlined, not fetched', [...document.querySelectorAll('#shelf button img.cv')]
         .every(i => i.getAttribute('src').startsWith('data:image/')));
   check('free story is available tonight', /free story is ready/.test(quota()), quota());
